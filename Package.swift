@@ -2,6 +2,9 @@
 
 import PackageDescription
 
+let FirebaseWrapper: Target.Dependency = .product(name: "FirebaseWrapper", package: "FirebaseWrapper")
+let FirebaseWrapperAuth: Target.Dependency = .product(name: "FirebaseWrapperAuth", package: "FirebaseWrapper")
+
 let package = Package(
     name: "FirebaseProfile",
     platforms: [
@@ -17,23 +20,14 @@ let package = Package(
     ],
     dependencies: [
         .package(
-            name: "Firebase",
-            url: "https://github.com/firebase/firebase-ios-sdk", .upToNextMajor(from: "8.13.0")
-        ),
-        .package(path: "SwiftBoost")
+            name: "FirebaseWrapper",
+            url: "https://github.com/sparrowcode/FirebaseWrapper", .upToNextMajor(from: "1.0.0")
+        )
     ],
     targets: [
         .target(
             name: "FirebaseProfile",
-            dependencies: [
-                .product(name: "SwiftBoost", package: "SwiftBoost"),
-                .product(name: "FirebaseAuth", package: "Firebase"),
-                .product(name: "FirebaseFirestore", package: "Firebase"),
-                .product(name: "FirebaseStorage", package: "Firebase")
-            ],
-            swiftSettings: [
-                .define("FIREBASEPROFILE_SPM")
-            ]
+            dependencies: [FirebaseWrapper, FirebaseWrapperAuth]
         )
     ],
     swiftLanguageVersions: [.v5]
