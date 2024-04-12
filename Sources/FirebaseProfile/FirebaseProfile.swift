@@ -25,24 +25,30 @@ public enum FirebaseProfile {
     public static var profile: FirebaseProfileModel? {
         guard let userID = FirebaseWrapperAuth.userID else { return nil }
         guard let userEmail = FirebaseWrapperAuth.userEmail else { return nil }
-        return FirebaseProfileModel(id: userID, email: userEmail, name: FirebaseWrapperAuth.userName)
+        return FirebaseProfileModel(
+            id: userID,
+            email: userEmail,
+            name: FirebaseWrapperAuth.userName,
+            providers: FirebaseWrapperAuth.providers
+        )
     }
     
     // MARK: - Actions
     
-    public static func signIn(with way: FirebaseAuthWay, on controller: UIViewController, completion: ((Error?) -> Void)?) {
+    public static func signIn(with way: FirebaseAuthWay, completion: ((Error?) -> Void)?) {
         switch way {
-        case .apple:
+        case .apple(let controller):
             FirebaseWrapperAuth.signInWithApple(on: controller) { data, error in
                 completion?(error)
             }
-        case .google:
+        case .google(let controller):
             FirebaseWrapperAuth.signInWithGoogle(on: controller) { data, error in
                 completion?(error)
             }
-        case .email:
-            #warning("todo")
-            break
+        case .email(let email, let handleURL):
+            FirebaseWrapperAuth.signInWithEmail(email: email, handleURL: handleURL) { error in
+                completion?(error)
+            }
         }
     }
     
@@ -57,13 +63,11 @@ public enum FirebaseProfile {
     // MARK: - Private
 }
 
-public enum FirebaseAuthWay: String {
+public enum FirebaseAuthWay {
     
-    case apple
-    case google
-    case email
-    
-    var id: String { rawValue }
+    case apple(_ controller: UIViewController)
+    case google(_ controller: UIViewController)
+    case email(_ email: String, handleURL: URL)
 }
 
 extension Notification.Name {
