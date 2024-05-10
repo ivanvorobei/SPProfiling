@@ -9,7 +9,7 @@ public enum FirebaseProfile {
     public static func configure(with options: FirebaseOptions) {
         FirebaseWrapper.configure(with: options)
         FirebaseWrapperAuth.configure() {
-            debug("In App: FirebaseWrapperAuth did change \(FirebaseWrapperAuth.isAuthed.description)")
+            debug("FirebaseProfile: Auth state did change to \(FirebaseWrapperAuth.isAuthed.description)")
             NotificationCenter.default.post(name: .firebaseProfileDidChangedAuth)
         }
     }
@@ -38,16 +38,16 @@ public enum FirebaseProfile {
     public static func signIn(with way: FirebaseAuthWay, completion: ((Error?) -> Void)?) {
         switch way {
         case .apple(let controller):
-            FirebaseWrapperAuth.signInWithApple(on: controller) { data, error in
-                completion?(error)
+            FirebaseWrapperAuth.signInWithApple(on: controller) { data, signInError in
+                completion?(signInError)
             }
         case .google(let controller):
-            FirebaseWrapperAuth.signInWithGoogle(on: controller) { data, error in
-                completion?(error)
+            FirebaseWrapperAuth.signInWithGoogle(on: controller) { signInError in
+                completion?(signInError)
             }
         case .email(let email, let handleURL):
-            FirebaseWrapperAuth.signInWithEmail(email: email, handleURL: handleURL) { error in
-                completion?(error)
+            FirebaseWrapperAuth.signInWithEmail(email: email, handleURL: handleURL) { signInError in
+                completion?(signInError)
             }
         }
     }
@@ -56,11 +56,41 @@ public enum FirebaseProfile {
         FirebaseWrapperAuth.signOut(completion: completion)
     }
     
-    public static func deleteProfile(on controller: UIViewController, completion: @escaping (Error?)->Void) {
-        FirebaseWrapperAuth.delete(on: controller, completion: completion)
+    public static func deleteProfile(with way: FirebaseAuthWay, completion: @escaping (FWADeleteProfileError?)->Void) {
+        switch way {
+        case .apple(let controller):
+            FirebaseWrapperAuth.signInWithApple(on: controller) { data, signInError in
+                if signInError != nil {
+                    completion(.failed)
+                    return
+                }
+                guard let data else {
+                    completion(.failed)
+                    return
+                }
+                FirebaseWrapperAuth.revokeSignInWithApple(authorizationCode: data.authorizationCode)
+                FirebaseWrapperAuth.delete { deleteError in
+                    completion(deleteError)
+                }
+            }
+        case .google(let controller):
+            FirebaseWrapperAuth.signInWithGoogle(on: controller) { signInError in
+                FirebaseWrapperAuth.delete { deleteError in
+                    completion(deleteError)
+                }
+            }
+        case .email(let email, let handleURL):
+            FirebaseWrapperAuth.signInWithEmail(email: email, handleURL: handleURL) { signInError in
+                // Event `.mustConfirmViaEmail` not bug
+                // Its waiting to handle when user confirm sign in
+                if signInError != nil && signInError != .mustConfirmViaEmail {
+                    completion(.failed)
+                    return
+                }
+                completion(nil)
+            }
+        }
     }
-    
-    // MARK: - Private
 }
 
 public enum FirebaseAuthWay {
