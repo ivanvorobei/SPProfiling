@@ -1,5 +1,5 @@
 import Foundation
-import FirebaseWrapperAuth
+import FirewrapAuth
 
 public struct FirebaseProfileModel {
     
@@ -7,9 +7,9 @@ public struct FirebaseProfileModel {
     var email: String
     var name: String?
     
-    var providers: [FirebaseAuthProvider]
+    var providers: [FirewrapAuthProvider]
     
-    init(id: String, email: String, name: String? = nil, providers: [FirebaseAuthProvider]) {
+    init(id: String, email: String, name: String? = nil, providers: [FirewrapAuthProvider]) {
         self.id = id
         self.email = email
         self.name = name

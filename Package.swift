@@ -2,8 +2,8 @@
 
 import PackageDescription
 
-let FirebaseWrapper: Target.Dependency = .product(name: "FirebaseWrapper", package: "FirebaseWrapper")
-let FirebaseWrapperAuth: Target.Dependency = .product(name: "FirebaseWrapperAuth", package: "FirebaseWrapper")
+let Auth22: Target.Dependency = .product(name: "FirewrapAuth", package: "Firewrap")
+let Database: Target.Dependency = .product(name: "FirewrapDatabase", package: "Firewrap")
 
 let package = Package(
     name: "FirebaseProfile",
@@ -20,14 +20,14 @@ let package = Package(
     ],
     dependencies: [
         .package(
-            name: "FirebaseWrapper",
-            url: "https://github.com/sparrowcode/FirebaseWrapper", .upToNextMajor(from: "1.0.0")
+            name: "Firewrap",
+            url: "https://github.com/sparrowcode/Firewrap", .upToNextMajor(from: "1.0.0")
         )
     ],
     targets: [
         .target(
             name: "FirebaseProfile",
-            dependencies: [FirebaseWrapper, FirebaseWrapperAuth]
+            dependencies: [Auth22, Database]
         )
     ],
     swiftLanguageVersions: [.v5]

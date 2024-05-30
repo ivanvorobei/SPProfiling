@@ -1,65 +1,65 @@
 import UIKit
 import FirebaseCore
-import FirebaseWrapper
-import FirebaseWrapperAuth
+import Firewrap
+import FirewrapAuth
 import SwiftBoost
 
 public enum FirebaseProfile {
     
     public static func configure(with options: FirebaseOptions) {
-        FirebaseWrapper.configure(with: options)
-        FirebaseWrapperAuth.configure() {
-            debug("FirebaseProfile: Auth state did change to \(FirebaseWrapperAuth.isAuthed.description)")
+        Firewrap.configure(with: options)
+        FirewrapAuth.configure() {
+            debug("FirebaseProfile: Auth state did change to \(FirewrapAuth.isAuthed.description)")
             NotificationCenter.default.post(name: .firebaseProfileDidChangedAuth)
         }
     }
     
     public static func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
-        return FirebaseWrapperAuth.application(app, open: url, options: options)
+        return FirewrapAuth.application(app, open: url, options: options)
     }
     
     // MARK: - Data
     
-    public static var isAuthed: Bool { FirebaseWrapperAuth.userID != nil }
+    public static var isAuthed: Bool { FirewrapAuth.userID != nil }
     
     public static var profile: FirebaseProfileModel? {
-        guard let userID = FirebaseWrapperAuth.userID else { return nil }
-        guard let userEmail = FirebaseWrapperAuth.userEmail else { return nil }
+        guard let userID = FirewrapAuth.userID else { return nil }
+        guard let userEmail = FirewrapAuth.userEmail else { return nil }
         return FirebaseProfileModel(
             id: userID,
             email: userEmail,
-            name: FirebaseWrapperAuth.userName,
-            providers: FirebaseWrapperAuth.providers
+            name: FirewrapAuth.userName,
+            providers: FirewrapAuth.providers
         )
     }
     
     // MARK: - Actions
     
-    public static func signIn(with way: FirebaseAuthWay, completion: ((Error?) -> Void)?) {
+    public static func signIn(with way: FirebaseAuthWay, completion: ((FirewrapAuthSignInError?) -> Void)?) {
         switch way {
         case .apple(let controller):
-            FirebaseWrapperAuth.signInWithApple(on: controller) { data, signInError in
+            FirewrapAuth.signInWithApple(on: controller) { data, signInError in
                 completion?(signInError)
             }
         case .google(let controller):
-            FirebaseWrapperAuth.signInWithGoogle(on: controller) { signInError in
+            FirewrapAuth.signInWithGoogle(on: controller) { signInError in
                 completion?(signInError)
             }
         case .email(let email, let handleURL):
-            FirebaseWrapperAuth.signInWithEmail(email: email, handleURL: handleURL) { signInError in
+            FirewrapAuth.signInWithEmail(email: email, handleURL: handleURL) { signInError in
                 completion?(signInError)
             }
         }
     }
     
     public static func signOut(completion: @escaping (Error?)->Void) {
-        FirebaseWrapperAuth.signOut(completion: completion)
+        FirewrapAuth.signOut(completion: completion)
     }
     
-    public static func deleteProfile(with way: FirebaseAuthWay, completion: @escaping (FWADeleteProfileError?)->Void) {
+    public static func deleteProfile(with way: FirebaseAuthWay, completion: @escaping (FirewrapDeleteProfileError?)->Void) {
         switch way {
         case .apple(let controller):
-            FirebaseWrapperAuth.signInWithApple(on: controller) { data, signInError in
+            FirewrapAuth.signInWithApple(on: controller) { data, signInError in
                 if signInError != nil {
                     completion(.failed)
                     return
@@ -68,19 +68,19 @@ public enum FirebaseProfile {
                     completion(.failed)
                     return
                 }
-                FirebaseWrapperAuth.revokeSignInWithApple(authorizationCode: data.authorizationCode)
-                FirebaseWrapperAuth.delete { deleteError in
+                FirewrapAuth.revokeSignInWithApple(authorizationCode: data.authorizationCode)
+                FirewrapAuth.delete { deleteError in
                     completion(deleteError)
                 }
             }
         case .google(let controller):
-            FirebaseWrapperAuth.signInWithGoogle(on: controller) { signInError in
-                FirebaseWrapperAuth.delete { deleteError in
+            FirewrapAuth.signInWithGoogle(on: controller) { signInError in
+                FirewrapAuth.delete { deleteError in
                     completion(deleteError)
                 }
             }
         case .email(let email, let handleURL):
-            FirebaseWrapperAuth.signInWithEmail(email: email, handleURL: handleURL) { signInError in
+            FirewrapAuth.signInWithEmail(email: email, handleURL: handleURL) { signInError in
                 // Event `.mustConfirmViaEmail` not bug
                 // Its waiting to handle when user confirm sign in
                 if signInError != nil && signInError != .mustConfirmViaEmail {
