@@ -7,12 +7,9 @@ public struct FirebaseProfileModel {
     var email: String
     var name: String?
     
-    var providers: [FirewrapAuthProvider]
-    
-    init(id: String, email: String, name: String? = nil, providers: [FirewrapAuthProvider]) {
+    init(id: String, email: String, name: String? = nil) {
         self.id = id
         self.email = email
         self.name = name
-        self.providers = providers
     }
 }
