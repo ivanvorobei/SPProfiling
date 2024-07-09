@@ -1,8 +1,8 @@
-// swift-tools-version:5.3
+// swift-tools-version: 5.9
 
 import PackageDescription
 
-let Auth22: Target.Dependency = .product(name: "FirewrapAuth", package: "Firewrap")
+let Auth: Target.Dependency = .product(name: "FirewrapAuth", package: "Firewrap")
 let Database: Target.Dependency = .product(name: "FirewrapDatabase", package: "Firewrap")
 
 let package = Package(
@@ -10,7 +10,8 @@ let package = Package(
     platforms: [
         .iOS(.v13),
         .tvOS(.v13),
-        .watchOS(.v6)
+        .watchOS(.v6),
+        .macOS(.v13)
     ],
     products: [
         .library(
@@ -19,15 +20,12 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(
-            name: "Firewrap",
-            url: "https://github.com/sparrowcode/Firewrap", .upToNextMajor(from: "1.0.0")
-        )
+        .package(url: "https://github.com/sparrowcode/Firewrap", .upToNextMajor(from: "1.0.0"))
     ],
     targets: [
         .target(
             name: "FirebaseProfile",
-            dependencies: [Auth22, Database]
+            dependencies: [Auth, Database]
         )
     ],
     swiftLanguageVersions: [.v5]

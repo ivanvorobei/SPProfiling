@@ -1,5 +1,5 @@
 import UIKit
-import FirebaseCore
+import Firebase
 import Firewrap
 import FirewrapAuth
 import FirewrapDatabase
