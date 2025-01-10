@@ -1,6 +1,7 @@
 import Foundation
 import FirewrapDatabase
 
+/*
 extension FirebaseProfile {
     
     enum Profile {
@@ -51,3 +52,4 @@ extension FirebaseProfile {
         }
     }
 }
+*/

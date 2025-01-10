@@ -5,17 +5,25 @@ import FirewrapAuth
 import FirewrapDatabase
 import SwiftBoost
 
-public enum FirebaseProfile {
+public class FirebaseProfile {
+    
+    // MARK: - Public
+    // MARK: Configure
     
     public static func configure(with options: FirebaseOptions) {
         Firewrap.configure(with: options)
         FirewrapAuth.configure(authDidChangedWork: {
-            debug("FirebaseProfile: Auth state did change to \(FirewrapAuth.isAuthed.description)")
             
-            if isAuthed {
-                runObservers()
+            printConsole("Auth state did change to \(FirewrapAuth.isAuthed.description)")
+            
+            if shared.isSignInProcess {
+                printConsole("Sign in process going so observers running skip")
             } else {
-                stopObservers()
+                if isAuthed {
+                    runObservers()
+                } else {
+                    stopObservers()
+                }
             }
             
             NotificationCenter.default.post(name: .firebaseProfileDidChangedAuth)
@@ -26,13 +34,20 @@ public enum FirebaseProfile {
         }
     }
     
+    public static func enableObserveDevicesList() {
+        printConsole("Enable observing devices collection. Run observer")
+        shared.isEnabledObserveDevices = true
+        runDevicesCollectionObserver()
+    }
+    
     public static func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
         return FirewrapAuth.application(app, open: url, options: options)
     }
     
-    // MARK: - Data
+    // MARK: Data
     
     public static var isAuthed: Bool { FirewrapAuth.userID != nil }
+    public static var isSignInProcess: Bool { shared.isSignInProcess }
     
     public static var profile: FirebaseProfileModel? {
         guard let userID = FirewrapAuth.userID else { return nil }
@@ -44,32 +59,49 @@ public enum FirebaseProfile {
         )
     }
     
-    public static var authProviders: [FirewrapAuthProvider] {
-        FirewrapAuth.providers
+    /**
+     Cached devices which saved after `enableObserveDevicesList`.
+     For get actual list devices without observing use `getDevices()`
+     */
+    public static var devices: [FirebaseProfileDeviceModel]? {
+        guard isAuthed else { return nil }
+        return shared.cachedDevices
     }
     
-    // MARK: - Actions
+    public static func getDevices(completion: @escaping ([FirebaseProfileDeviceModel]) -> Void) {
+        guard let collection = FirewrapModels.makeFirewrapDevicesCollection() else {
+            completion([])
+            return
+        }
+        collection.getDocuments(.server) { data in
+            if let data, let devices = FirebaseProfileDeviceModel.convertToModels(data) {
+                completion(devices)
+            } else {
+                completion([])
+            }
+        }
+    }
     
-    #warning("replace error")
+    public static var authProviders: [FirewrapAuthProvider] { FirewrapAuth.providers }
+    
+    // MARK: Actions
+    
     public static func signIn(with way: FirebaseAuthWay, completion: ((FirewrapAuthSignInError?) -> Void)?) {
         
-        // Вход -> Загружаем профиль (если нет, сохраняем текущий) -> загружаем список устройств (если нет, сохраняем текущее) -> выставляем обсерверы -> завершаем авторизацию
+        shared.isSignInProcess = true
         
-        // Call after success auth
-        let process = {
-            validateProfile { profileValidated in
-                if profileValidated {
-                    validateDevice { deviceValidated in
-                        if deviceValidated {
-                            runObservers()
-                            completion?(nil)
-                        } else {
-                            completion?(.failed)
-                        }
-                    }
+        let preparing = {
+            saveDevice { success, error in
+                if success {
+                    runObservers()
+                    completion?(nil)
                 } else {
-                    completion?(.failed)
+                    stopObservers()
+                    completion?(.unknow)
                 }
+                
+                // Done Sign In process
+                shared.isSignInProcess = false
             }
         }
         
@@ -77,31 +109,34 @@ public enum FirebaseProfile {
         case .apple(let controller):
             FirewrapAuth.signInWithApple(on: controller) { data, signInError in
                 if let signInError {
+                    shared.isSignInProcess = false
                     completion?(signInError)
                 } else {
-                    process()
+                    preparing()
                 }
             }
         case .google(let controller):
             FirewrapAuth.signInWithGoogle(on: controller) { signInError in
                 if let signInError {
+                    shared.isSignInProcess = false
                     completion?(signInError)
                 } else {
-                    process()
+                    preparing()
                 }
             }
         case .email(let email, let handleURL):
             FirewrapAuth.signInWithEmail(email: email, handleURL: handleURL) { signInError in
                 if let signInError {
+                    shared.isSignInProcess = false
                     completion?(signInError)
                 } else {
-                    process()
+                    preparing()
                 }
             }
         }
     }
     
-    public static func signOut(completion: @escaping (Error?)->Void) {
+    public static func signOut(completion: @escaping (Error?)->Void = { _ in }) {
         FirewrapAuth.signOut(completion: completion)
     }
     
@@ -141,82 +176,91 @@ public enum FirebaseProfile {
         }
     }
     
-    // MARK: - Observers
-    
-    // внутри обсерверов делаем валидацию автоматическую, в фоне так сказать
-    
-    static func runObservers() {
-        debug("FirebaseProfile: Run observers")
-    }
-    
-    static func stopObservers() {
-        debug("FirebaseProfile: Stop observers")
-    }
-    
-    // MARK: - Manage
-    
-    static func validateProfile(completion: @escaping (Bool) -> Void) {
-        debug("FirebaseProfile: Validating profile...")
+    // MARK: Observers
+
+    private static func runObservers() {
         
-        guard
-            let currentProfile = FirebaseProfile.profile,
-            let profileDocument = firewrapProfileDocument
-        else {
-            debug("FirebaseProfile: Validated profile canceled, user not authed")
-            completion(false)
-            return
+        printConsole("Run profile & current device observers")
+        
+        // Middleware
+        guard FirebaseProfile.profile != nil else { return }
+        
+        // Reset Documents
+        shared.firewrapProfileDocument?.removeObserver()
+        shared.firewrapProfileDocument = FirewrapModels.makeFirewrapProfileDocument()
+        
+        shared.firewrapDeviceDocument?.removeObserver()
+        shared.firewrapDeviceDocument = FirewrapModels.makeFirewrapDeviceDocument()
+        
+        // Listners
+        shared.firewrapProfileDocument?.observe { data in
+            printConsole("Profile Observer got new data:" + String.newline + formattedJSON(data))
+            guard let currentProfile = FirebaseProfile.profile else { return }
+            let storedEmail = data?["email"] as? String
+            let storedName = data?["name"] as? String
+            if currentProfile.email != storedEmail || currentProfile.name != storedName {
+                printConsole("Stored email or name not match to auth meta email, run update")
+                saveProfile()
+            }
         }
         
-        let updateProfileInFirestore: (_ completion: @escaping () -> Void) -> () = { completion in
-            profileDocument.set([
-                "email" : currentProfile.email,
-                "name" : currentProfile.name ?? FirewrapFieldNil()
-            ], merge: true, completion: {
-                completion()
-            })
-        }
-        
-        profileDocument.get(.server) { data in
-            if let data {
-                let email = data["email"] as? String
-                let name = data["name"] as? String
-                
-                if email != currentProfile.email || name != currentProfile.name {
-                    updateProfileInFirestore {
-                        debug("FirebaseProfile: Validated profile, data not match & updated")
-                        completion(true)
+        shared.firewrapDeviceDocument?.observe { data in
+            printConsole("Device Observer got new data:" + String.newline + formattedJSON(data))
+            if let data, let device = FirebaseProfileDeviceModel.convertToModel(data) {
+                if device.status == .suspended {
+                    printConsole("Current device status suspended. Start sign out process")
+                    signOut()
+                } else {
+                    if device != FirebaseProfileDeviceModel.current {
+                        printConsole("Remote device not match to current device. Updating fields")
+                        saveDevice()
                     }
                 }
             } else {
-                #warning("if no internet return false")
-                updateProfileInFirestore {
-                    debug("FirebaseProfile: Validated profile, no profile in database")
-                    completion(true)
-                }
+                printConsole("Device not in list. Adding")
+                saveDevice()
             }
+        }
+        
+        if shared.isEnabledObserveDevices {
+            runDevicesCollectionObserver()
         }
     }
     
-    static func validateDevice(completion: @escaping (Bool) -> Void) {
-        debug("FirebaseProfile: Validating device...")
-        debug("FirebaseProfile: Validated device")
-        completion(true)
+    static func runDevicesCollectionObserver() {
+        
+        printConsole("Run devices collection observer")
+        
+        shared.firewrapDeviceCollection?.removeObserver()
+        shared.firewrapDeviceCollection = FirewrapModels.makeFirewrapDevicesCollection()
+        
+        shared.firewrapDeviceCollection?.observe { data in
+            printConsole("Devices Collection Observer got new data:" + String.newline + formattedJSON(data))
+            if let data, let devices = FirebaseProfileDeviceModel.convertToModels(data) {
+                shared.cachedDevices = devices
+            }
+            NotificationCenter.default.post(name: .firebaseProfileDidUpdatedDevices)
+        }
     }
     
-    static var firewrapProfileDocument: FirewrapDocument? {
-        guard let currentProfile = FirebaseProfile.profile else { return nil }
-        return FirewrapDocument("/profiles/" + currentProfile.id)
+    private static func stopObservers() {
+        printConsole("Stop profile & current device observers")
+        shared.firewrapProfileDocument?.removeObserver()
+        shared.firewrapDeviceDocument?.removeObserver()
+        shared.firewrapDeviceCollection?.removeObserver()
     }
-}
-
-public enum FirebaseAuthWay {
     
-    case apple(_ controller: UIViewController)
-    case google(_ controller: UIViewController)
-    case email(_ email: String, handleURL: URL)
-}
-
-extension Notification.Name {
+    // MARK: - Singltone
     
-    public static var firebaseProfileDidChangedAuth = Notification.Name("firebaseProfileDidChangedAuth")
+    internal var firewrapProfileDocument: FirewrapDocument? = nil
+    internal var firewrapDeviceDocument: FirewrapDocument? = nil
+    internal var firewrapDeviceCollection: FirewrapCollection? = nil
+    
+    private var isSignInProcess: Bool = false
+    
+    private var isEnabledObserveDevices: Bool = false
+    private var cachedDevices: [FirebaseProfileDeviceModel] = []
+    
+    static let shared = FirebaseProfile()
+    private init() {}
 }
