@@ -10,10 +10,16 @@ extension FirebaseProfile {
     }
     
     static func formattedJSON(_ json: [String : Any]?) -> String {
-        guard let json else { return "> Empty JSON" }
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted) else { return "Bug: JSONSerialization" }
-        guard let jsonString = String(data: jsonData, encoding: .utf8) else { return "Bug: JSONSerialization" }
-        return jsonString
+        return json?.debugDescription ?? "nil"
+        /*do {
+            guard let json else { return "> Empty JSON" }
+            let jsonData = try JSONSerialization.data(withJSONObject: json, options: .prettyPrinted)
+            let jsonString = String(data: jsonData, encoding: .utf8)
+            return jsonString ?? "empty"
+        } catch {
+            print("Invalid json format, but printed any way: \(json)")
+            return "empty"
+        }*/
     }
     
     // MARK: Firestore Documents & Collections

@@ -73,12 +73,8 @@ public class FirebaseProfile {
             completion([])
             return
         }
-        collection.getDocuments(.server) { data in
-            if let data, let devices = FirebaseProfileDeviceModel.convertToModels(data) {
-                completion(devices)
-            } else {
-                completion([])
-            }
+        collection.getDocuments(as: FirebaseProfileDeviceModel.self, source: .server) { devices, errror in
+            completion(devices ?? [])
         }
     }
     
@@ -92,6 +88,7 @@ public class FirebaseProfile {
         
         let preparing = {
             saveDevice { success, error in
+                
                 if success {
                     runObservers()
                     completion?(nil)
@@ -183,7 +180,7 @@ public class FirebaseProfile {
         printConsole("Run profile & current device observers")
         
         // Middleware
-        guard FirebaseProfile.profile != nil else { return }
+        guard FirebaseProfile.isAuthed else { return }
         
         // Reset Documents
         shared.firewrapProfileDocument?.removeObserver()
@@ -194,7 +191,7 @@ public class FirebaseProfile {
         
         // Listners
         shared.firewrapProfileDocument?.observe { data in
-            printConsole("Profile Observer got new data:" + String.newline + formattedJSON(data))
+            printConsole("Profile Observer got update")
             guard let currentProfile = FirebaseProfile.profile else { return }
             let storedEmail = data?["email"] as? String
             let storedName = data?["name"] as? String
@@ -204,9 +201,9 @@ public class FirebaseProfile {
             }
         }
         
-        shared.firewrapDeviceDocument?.observe { data in
-            printConsole("Device Observer got new data:" + String.newline + formattedJSON(data))
-            if let data, let device = FirebaseProfileDeviceModel.convertToModel(data) {
+        shared.firewrapDeviceDocument?.observe(as: FirebaseProfileDeviceModel.self) { device in
+            printConsole("Device Observer got update")
+            if let device {
                 if device.status == .suspended {
                     printConsole("Current device status suspended. Start sign out process")
                     signOut()
@@ -217,7 +214,7 @@ public class FirebaseProfile {
                     }
                 }
             } else {
-                printConsole("Device not in list. Adding")
+                printConsole("Device not in list. Adding...")
                 saveDevice()
             }
         }
@@ -234,11 +231,10 @@ public class FirebaseProfile {
         shared.firewrapDeviceCollection?.removeObserver()
         shared.firewrapDeviceCollection = FirewrapModels.makeFirewrapDevicesCollection()
         
-        shared.firewrapDeviceCollection?.observe { data in
-            printConsole("Devices Collection Observer got new data:" + String.newline + formattedJSON(data))
-            if let data, let devices = FirebaseProfileDeviceModel.convertToModels(data) {
-                shared.cachedDevices = devices
-            }
+        shared.firewrapDeviceCollection?.observe(as: FirebaseProfileDeviceModel.self) { devices in
+            printConsole("Devices Collection Observer got update")
+            guard let devices else { return }
+            shared.cachedDevices = devices
             NotificationCenter.default.post(name: .firebaseProfileDidUpdatedDevices)
         }
     }

@@ -53,17 +53,11 @@ extension FirebaseProfile {
             return
         }
         
-        guard let data = currentDevice.firebaseDictionary else {
-            printConsole("Can't convert current device model to json")
-            completion(false, FirebaseProfileError.internal)
-            return
-        }
-        
         // Saving
         printConsole("Saving operation current device to Firestore")
-        deviceCollection.document(currentDevice.id).set(data, merge: false) { success, error in
+        deviceCollection.document(currentDevice.id).set(currentDevice, merge: false) { success, error in
             if let error {
-                printConsole("Saving current device unsuccsesful, error \(error.localizedDescription)")
+                printConsole("Saving current device unsuccsesful, error: \(error.localizedDescription)")
                 completion(success, error)
             } else {
                 printConsole("Saving current device successful")
